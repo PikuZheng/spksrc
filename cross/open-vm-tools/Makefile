@@ -17,7 +17,7 @@ COMMENT  = open-vm-tools is a set of services and modules that enable several fe
 LICENSE  = GPLv2/LGPLv2.1
 
 GNU_CONFIGURE = 1
-CONFIGURE_ARGS = --without-pam --without-x
+CONFIGURE_ARGS = --without-pam --without-x --enable-containerinfo=no
 
 # requires glib-genmarshal binary built for host system
 NATIVE_GLIB_BIN_DIR = $(realpath $(WORK_DIR)/../../../native/glib/work-native/install/usr/local/bin)
