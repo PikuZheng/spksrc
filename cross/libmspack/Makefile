@@ -2,9 +2,9 @@ PKG_NAME = libmspack
 PKG_VERS = 1.9.1
 PKG_EXT = tar.gz
 PKG_DIST_NAME = v$(PKG_VERS).$(PKG_EXT)
-PKG_DIST_SITE = https://github.com/kyz/libmspack/archive
-PKG_DIST_FILE = $(PKG_NAME)_$(PKG_VERS).$(PKG_EXT)
-PKG_DIR = $(PKG_NAME)-$(PKG_VERS)/$(PKG_NAME)
+PKG_DIST_SITE = https://github.com/kyz/libmspack/archive/
+PKG_DIST_FILE = v$(PKG_VERS).$(PKG_EXT)
+PKG_DIR = refs/tags
 
 DEPENDS =
 
