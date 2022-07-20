@@ -4,7 +4,7 @@ PKG_EXT = tar.gz
 PKG_DIST_NAME = v$(PKG_VERS).$(PKG_EXT)
 PKG_DIST_SITE = https://github.com/kyz/libmspack/archive/
 PKG_DIST_FILE = v$(PKG_VERS).$(PKG_EXT)
-PKG_DIR = refs/tags
+PKG_DIR = $(PKG_NAME)-$(PKG_VERS)/$(PKG_NAME)
 
 DEPENDS =
 
