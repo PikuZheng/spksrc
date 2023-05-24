@@ -1,4 +1,4 @@
-FROM debian:buster
+FROM debian:bullseye
 LABEL description="Framework for maintaining and compiling native community packages for Synology devices"
 LABEL maintainer="SynoCommunity <https://github.com/SynoCommunity/spksrc/graphs/contributors>"
 LABEL url="https://synocommunity.com"
@@ -15,13 +15,14 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 		autogen \
 		automake \
 		autopoint \
+		bash \
 		bc \
 		bison \
 		build-essential \
 		check \
 		cmake \
 		curl \
-		cython \
+		cython3 \
 		debootstrap \
 		ed \
 		expect \
@@ -51,11 +52,11 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 		lzip \
 		mercurial \
 		moreutils \
-		ncurses-dev \
 		ninja-build \
 		patchelf \
 		php \
 		pkg-config \
+		python2 \
 		python3 \
 		python3-distutils \
 		rename \
@@ -84,9 +85,8 @@ RUN pip2 install virtualenv httpie
 # Default pip -> python3 aware for native python wheels builds
 RUN wget https://bootstrap.pypa.io/get-pip.py -O - | python3
 # Install meson cross-platform build system
-RUN pip3 install meson==0.62.2
+RUN pip3 install meson==1.0.0
 
 # Volume pointing to spksrc sources
 VOLUME /spksrc
-
 WORKDIR /spksrc

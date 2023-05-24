@@ -1,21 +1,29 @@
-PKG_NAME = glib
-PKG_VERS = 2.66.4
-PKG_SHORT_VERS = $(word 1,$(subst ., ,$(PKG_VERS))).$(word 2,$(subst ., ,$(PKG_VERS)))
-PKG_EXT = tar.xz
-PKG_DIR = $(PKG_NAME)-$(PKG_VERS)
-PKG_DIST_NAME = $(PKG_NAME)-$(PKG_VERS).$(PKG_EXT)
-PKG_DIST_SITE = https://ftp.gnome.org/pub/GNOME/sources/$(PKG_NAME)/$(PKG_SHORT_VERS)
-
-DEPENDS = cross/libffi cross/pcre cross/zlib
+PKG_NAME = glib-main
 
 HOMEPAGE = https://developer.gnome.org/glib/
-COMMENT  = General-purpose utility library
-LICENSE  = GPLv2
+COMMENT  = General-purpose utility library.
+LICENSE  = LGPLv2.1+
 
-UNSUPPORTED_ARCHS = $(OLD_PPC_ARCHS)
+DOWNLOAD_TARGET = nop
+CHECKSUM_TARGET = nop
+EXTRACT_TARGET = nop
+CONFIGURE_TARGET = nop
+COMPILE_TARGET = nop
+INSTALL_TARGET = nop
 
-# https://developer.gnome.org/glib/
-# https://developer.gnome.org/glib/stable/glib-building.html
-CONFIGURE_ARGS += -Dman=false -Dlibmount=disabled -Ddefault_library=shared -Dselinux=disabled
+OPTIONAL_DEPENDS  = cross/glib-latest
+OPTIONAL_DEPENDS += cross/glib-2.66
+OPTIONAL_DEPENDS += cross/glib-2.58
 
-include ../../mk/spksrc.cross-meson.mk
+include ../../mk/spksrc.install-resources.mk
+
+# If kernel >= 3.10 && gcc >= 7.5
+ifeq ($(call version_ge, $(TC_KERNEL), 3.10)$(call version_ge, $(TC_GCC), 7.5),11)
+DEPENDS = cross/glib-latest
+else
+ifneq ($(findstring $(ARCH),$(OLD_PPC_ARCHS)),$(ARCH))
+DEPENDS = cross/glib-2.66
+else
+DEPENDS = cross/glib-2.58
+endif
+endif

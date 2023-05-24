@@ -35,10 +35,19 @@ call_func ()
     if type "${FUNC}" 2>/dev/null | grep -q 'function' 2>/dev/null; then
         install_log "Begin ${FUNC}"
         LOG=$2
+        ARG=$3
         if [ -z "${LOG}" ]; then
-            eval ${FUNC}
+            if [ -z "${ARG}" ]; then
+                eval ${FUNC}
+            else
+                eval ${FUNC} ${ARG}
+            fi
         else
-            eval ${FUNC} 2>&1 | ${LOG}
+            if [ -z "${ARG}" ]; then
+                eval ${FUNC} 2>&1 | ${LOG}
+            else
+                eval ${FUNC} ${ARG} 2>&1 | ${LOG}
+            fi
         fi
         install_log "End ${FUNC}"
     fi
@@ -58,10 +67,10 @@ if [ -r "${SVC_SETUP}" ]; then
 fi
 
 
-# Reload wizard variables stored by postinst
-call_func "reload_inst_variables"
+# Load (wizard) variables stored by postinst
+call_func "load_variables_from_file" install_log ${INST_VARIABLES}
 
-# init variables either reloaded, from package or from wizard
+# init variables either from ${INST_VARIABLES}, from package or from wizard
 call_func "initialize_variables"
 
 
@@ -139,9 +148,9 @@ set_syno_permissions ()
     # Ensure directory resides in /volumeX before setting GROUP permissions
     if [ "$(echo ${VOLUME} | cut -c2-7)" = "volume" ]; then
         # Set read/write permissions for GROUP for folder and subfolders
-        if [ ! "$(synoacltool -get \"${DIRNAME}\"| grep \"group:${GROUP}:allow:rwxpdDaARWcC-:fd--\")" ]; then
+        if [ ! "$(synoacltool -get ""${DIRNAME}"" | grep ""group:${GROUP}:allow:rwxpdDaARWcC-:fd--"")" ]; then
             # First Unix permissions, but only if it's in Linux mode
-            if [ "$(synoacltool -get \"${DIRNAME}\"| grep \"Linux mode\")" ]; then
+            if [ "$(synoacltool -get ""${DIRNAME}"" | grep -i 'Linux mode')" ]; then
                 set_unix_permissions "${DIRNAME}"
                 # If it is linux mode (due to old package) we need to add "administrators"-group,
                 # otherwise the folder is not accessible from File Station anymore!
@@ -156,9 +165,9 @@ set_syno_permissions ()
 
         # Walk up the tree and set traverse execute permissions for GROUP up to VOLUME
         while [ "${DIRNAME}" != "${VOLUME}" ]; do
-            if [ ! "$(synoacltool -get \"${DIRNAME}\"| grep \"group:${GROUP}:allow:r.x\")" ]; then
+            if [ ! "$(synoacltool -get ""${DIRNAME}"" | grep ""group:${GROUP}:allow:r.x"")" ]; then
                 # Here we also need to make sure the admin can access data via File Station
-                if [ "$(synoacltool -get \"${DIRNAME}\"| grep \"Linux mode\")" ]; then
+                if [ "$(synoacltool -get ""${DIRNAME}"" | grep -i 'Linux mode')" ]; then
                     synoacltool -add "${DIRNAME}" "group:administrators:allow:rwxpdDaARWc--:fd--"
                 fi
                 # Add the new group permissions

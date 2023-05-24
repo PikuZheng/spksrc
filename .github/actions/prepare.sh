@@ -6,7 +6,7 @@
 #
 # Functions:
 # - Evaluate all packages to build depending on files defined in ${GH_FILES}.
-# - ffmpeg is moved to head of packages to built first if triggered by its own or a dependent.
+# - ffmpeg (spk/ffmpeg4), ffmpeg5 and ffmpeg6 are moved to head of packages to built first if triggered by its own or a dependent.
 # - Referenced native and cross packages of the packages to build are added to the download list.
 
 set -o pipefail
@@ -44,7 +44,7 @@ done
 
 # fix for packages with different names
 if [ "$(echo ${SPK_TO_BUILD} | grep -ow nzbdrone)" != "" ]; then
-    SPK_TO_BUILD+=" sonarr"
+    SPK_TO_BUILD+=" sonarr3"
 fi
 if [ "$(echo ${SPK_TO_BUILD} | grep -ow python)" != "" ]; then
     SPK_TO_BUILD+=" python2"
@@ -53,21 +53,21 @@ fi
 # remove duplicate packages
 packages=$(printf %s "${SPK_TO_BUILD}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
 
+# for ffmpeg v4-6 find all packages that depends on them
+for i in {4..6}; do
+    ffmpeg_dependent_packages=$(find spk/ -maxdepth 2 -mindepth 2 -name "Makefile" -exec grep -Ho "FFMPEG_VERSION = ${i}" {} \; | grep -Po ".*spk/\K[^/]*" | sort | tr '\n' ' ')
 
-# find all packages that depend on spk/ffmpeg is built before.
-all_ffmpeg_packages=$(find spk/ -maxdepth 2 -mindepth 2 -name "Makefile" -exec grep -Ho "export FFMPEG_DIR" {} \; | grep -Po ".*spk/\K[^/]*" | sort | tr '\n' ' ')
-
-# if ffmpeg or one of its dependents is to build, ensure
-# ffmpeg is first package in the list of packages to build.
-for package in ${packages}
-do
-    if [ "$(echo ffmpeg ${all_ffmpeg_packages} | grep -ow ${package})" != "" ]; then
-        packages_without_ffmpeg=$(echo "${packages}" | tr ' ' '\n' | grep -v "ffmpeg" | tr '\n' ' ')
-        packages="ffmpeg ${packages_without_ffmpeg}"
-        break;
-    fi
+    # If packages contain a package that depends on ffmpeg (or is ffmpeg), then ensure
+    # relevant ffmpeg4|ffmpeg5|ffmpeg6 is first in list
+    for package in ${packages}
+    do
+        if [ "$(echo ffmpeg${i} ${ffmpeg_dependent_packages} | grep -ow ${package})" != "" ]; then
+            packages_without_ffmpeg=$(echo "${packages}" | tr ' ' '\n' | grep -v "ffmpeg${i}" | tr '\n' ' ')
+            packages="ffmpeg${i} ${packages_without_ffmpeg}"
+            break
+        fi
+    done
 done
-
 
 # find all noarch packages
 all_noarch=$(find spk/ -maxdepth 2 -mindepth 2 -name "Makefile" -exec grep -Ho "override ARCH" {} \; | grep -Po ".*spk/\K[^/]*" | sort | tr '\n' ' ')
@@ -87,14 +87,14 @@ do
     fi
 done
 
-echo "::set-output name=arch_packages::${arch_packages}"
-echo "::set-output name=noarch_packages::${noarch_packages}"
+echo "arch_packages=${arch_packages}" >> $GITHUB_OUTPUT
+echo "noarch_packages=${noarch_packages}" >> $GITHUB_OUTPUT
 
 echo "::endgroup::"
 
 if [ -z "${packages}" ]; then
     echo "===> No packages to download. <==="
-    echo "::set-output name=download_packages::"
+    echo "download_packages" >> $GITHUB_OUTPUT
 else
     echo "===> PACKAGES to download references for: ${packages}"
     DOWNLOAD_LIST=
@@ -108,5 +108,5 @@ else
     done
     # remove duplicate downloads
     downloads=$(printf %s "${DOWNLOAD_LIST}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
-    echo "::set-output name=download_packages::${downloads}"
+    echo "download_packages=${downloads}" >> $GITHUB_OUTPUT
 fi

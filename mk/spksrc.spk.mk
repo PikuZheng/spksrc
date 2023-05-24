@@ -54,19 +54,20 @@ else
 # different noarch packages
 SPK_ARCH = noarch
 SPK_NAME_ARCH = noarch
-ifeq ($(strip $(TCVERSION)),)
-# default: 3.1 .. 5.2
-TCVERSION = 5.2
-endif
+ifneq ($(strip $(TCVERSION)),)
 ifeq ($(call version_ge, $(TCVERSION), 7.0),1)
 SPK_TCVERS = dsm7
 TC_OS_MIN_VER = 7.0-40000
 else ifeq ($(call version_ge, $(TCVERSION), 6.1),1)
 SPK_TCVERS = dsm6
 TC_OS_MIN_VER = 6.1-15047
-else ifeq ($(call version_lt, $(TCVERSION), 3.0),1)
+else ifeq ($(call version_ge, $(TCVERSION), 3.0),1)
+SPK_TCVERS = all
+TC_OS_MIN_VER = 3.1-1594
+else
 SPK_TCVERS = srm
 TC_OS_MIN_VER = 1.1-6931
+endif
 else
 SPK_TCVERS = all
 TC_OS_MIN_VER = 3.1-1594
@@ -209,6 +210,15 @@ ifneq ($(strip $(START_DEP_SERVICES)),)
 endif
 ifneq ($(strip $(INSTUNINST_RESTART_SERVICES)),)
 	@echo instuninst_restart_services=\"$(INSTUNINST_RESTART_SERVICES)\" >> $@
+endif
+ifneq ($(strip $(INSTALL_REPLACE_PACKAGES)),)
+	@echo install_replace_packages=\"$(INSTALL_REPLACE_PACKAGES)\" >> $@
+endif
+ifneq ($(strip $(USE_DEPRECATED_REPLACE_MECHANISM)),)
+	@echo use_deprecated_replace_mechanism=\"$(USE_DEPRECATED_REPLACE_MECHANISM)\" >> $@
+endif
+ifneq ($(strip $(CHECKPORT)),)
+	@echo checkport=\"$(CHECKPORT)\" >> $@
 endif
 
 # for non startable (i.e. non service, cli tools only)
@@ -389,10 +399,10 @@ ifneq ($(strip $(WIZARDS_DIR)),)
 	    $(MSG) "Create DSM Version specific Wizards: $(WIZARDS_DIR)$(TCVERSION)"; \
 		find $${SPKSRC_WIZARDS_DIR}$(TCVERSION) -maxdepth 1 -type f -and \( $(WIZARD_FILE_NAMES) \) -print -exec cp -f {} $(DSM_WIZARDS_DIR) \; ;\
 	fi
-endif
-ifneq ($(wildcard $(DSM_WIZARDS_DIR)/*),)
-	@find $(DSM_WIZARDS_DIR) -maxdepth 1 -type f -not -name "*.sh" -print -exec chmod 0644 {} \;
-	@find $(DSM_WIZARDS_DIR) -maxdepth 1 -type f -name "*.sh" -print -exec chmod 0755 {} \;
+	@if [ -d "$(DSM_WIZARDS_DIR)" ]; then \
+		find $(DSM_WIZARDS_DIR) -maxdepth 1 -type f -not -name "*.sh" -print -exec chmod 0644 {} \; ;\
+		find $(DSM_WIZARDS_DIR) -maxdepth 1 -type f -name "*.sh" -print -exec chmod 0755 {} \; ;\
+	fi
 endif
 
 .PHONY: conf
@@ -425,30 +435,41 @@ endif
 ifeq ($(PUBLISH_API_KEY),)
 	$(error Set PUBLISH_API_KEY in local.mk)
 endif
-	http --verify=no --ignore-stdin --auth $(PUBLISH_API_KEY): POST $(PUBLISH_URL)/packages @$(SPK_FILE_NAME)
+	@response=$$(http --verify=no --ignore-stdin --auth $(PUBLISH_API_KEY): POST $(PUBLISH_URL)/packages @$(SPK_FILE_NAME) --print=hb); \
+	response_code=$$(echo "$$response" | grep -Fi "HTTP/1.1" | awk '{print $$2}'); \
+	if [ "$$response_code" = "201" ]; then \
+		output=$$(echo "$$response" | awk '/^[[:space:]]*$$/ {p=1;next} p'); \
+		echo "Package published successfully\n$$output" | tee --append publish-$*.log; \
+	else \
+		echo "ERROR: Failed to publish package - HTTP response code $$response_code\n$$output" | tee --append publish-$*.log; \
+		exit 1; \
+	fi
 
 
 ### Clean rules
 clean:
-	rm -fr work work-* build-*.log
+	rm -fr work work-* build-*.log publish-*.log
 
 spkclean:
 	rm -fr work-*/.copy_done \
 	       work-*/.depend_done \
 	       work-*/.icon_done \
 	       work-*/.strip_done \
-	       work-*/.wheel_done \
 	       work-*/conf \
 	       work-*/scripts \
 	       work-*/staging \
 	       work-*/tc_vars.mk \
 	       work-*/tc_vars.cmake \
-	       work-*/wheelhouse \
 	       work-*/package.tgz \
 	       work-*/INFO \
 	       work-*/PLIST \
 	       work-*/PACKAGE_ICON* \
 	       work-*/WIZARD_UIFILES
+
+wheelclean: spkclean
+	rm -fr work-*/.wheel_done \
+	       work-*/wheelhouse \
+	       work-*/install/var/packages/**/target/share/wheelhouse
 
 all: package
 ifneq ($(filter 1 on ON,$(PSTAT)),)
@@ -526,19 +547,19 @@ supported-arch-error:
 
 supported-arch-%: spk_msg
 	@$(MSG) "BUILDING package for arch $* (all-supported)" | tee --append build-$*.log
-	-@MAKEFLAGS= $(PSTAT_TIME) $(MAKE) $(addprefix arch-, $*)
+	-@MAKEFLAGS= $(PSTAT_TIME) GCC_DEBUG_INFO="$(GCC_DEBUG_INFO)" $(MAKE) $(addprefix arch-, $*)
 
 publish-supported-arch-%: spk_msg
 	@$(MSG) "BUILDING and PUBLISHING package for arch $* (publish-all-supported)" | tee --append build-$*.log
-	-@MAKEFLAGS= $(PSTAT_TIME) $(MAKE) $(addprefix publish-arch-, $*)
+	-@MAKEFLAGS= $(PSTAT_TIME) GCC_DEBUG_INFO="$(GCC_DEBUG_INFO)" $(MAKE) $(addprefix publish-arch-, $*)
 
 latest-arch-%: spk_msg
 	@$(MSG) "BUILDING package for arch $* (all-latest)" | tee --append build-$*.log
-	-@MAKEFLAGS= $(PSTAT_TIME) $(MAKE) $(addprefix arch-, $*)
+	-@MAKEFLAGS= $(PSTAT_TIME) GCC_DEBUG_INFO="$(GCC_DEBUG_INFO)" $(MAKE) $(addprefix arch-, $*)
 
 publish-latest-arch-%: spk_msg
 	@$(MSG) "BUILDING and PUBLISHING package for arch $* (publish-all-latest)" | tee --append build-$*.log
-	-@MAKEFLAGS= $(PSTAT_TIME) $(MAKE) $(addprefix publish-arch-, $*)
+	-@MAKEFLAGS= $(PSTAT_TIME) GCC_DEBUG_INFO="$(GCC_DEBUG_INFO)" $(MAKE) $(addprefix publish-arch-, $*)
 
 ####
 
@@ -578,6 +599,7 @@ kernel-modules-%:
 	   archs2process=$* ; \
 	fi ; \
 	$(MSG) ARCH to be processed: $${archs2process} ; \
+	set -e ; \
 	for arch in $${archs2process} ; do \
 	  $(MSG) "Processing $${arch} ARCH" ; \
 	  MAKEFLAGS= $(PSTAT_TIME) $(MAKE) WORK_DIR=$(PWD)/work-$* ARCH=$$(echo $${arch} | cut -f1 -d-) TCVERSION=$$(echo $${arch} | cut -f2 -d-) strip 2>&1 | tee --append build-$*.log ; \
@@ -603,7 +625,7 @@ build-arch-%: spk_msg
 ifneq ($(filter 1 on ON,$(PSTAT)),)
 	@$(MSG) MAKELEVEL: $(MAKELEVEL), PARALLEL_MAKE: $(PARALLEL_MAKE), ARCH: $*, SPK: $(SPK_NAME) [BEGIN] >> $(PSTAT_LOG)
 endif
-	@MAKEFLAGS= $(PSTAT_TIME) $(MAKE) ARCH=$(firstword $(subst -, ,$*)) TCVERSION=$(lastword $(subst -, ,$*)) 2>&1 | tee --append build-$*.log ; \
+	@MAKEFLAGS= $(PSTAT_TIME) GCC_DEBUG_INFO="$(GCC_DEBUG_INFO)" $(MAKE) ARCH=$(firstword $(subst -, ,$*)) TCVERSION=$(lastword $(subst -, ,$*)) 2>&1 | tee --append build-$*.log ; \
 	  [ $${PIPESTATUS[0]} -eq 0 ] || false
 ifneq ($(filter 1 on ON,$(PSTAT)),)
 	@$(MSG) MAKELEVEL: $(MAKELEVEL), PARALLEL_MAKE: $(PARALLEL_MAKE), ARCH: $*, SPK: $(SPK_NAME) [END] >> $(PSTAT_LOG)
@@ -618,7 +640,7 @@ ifneq ($(strip $(REQUIRE_KERNEL_MODULE)),)
 else
 	# handle and allow parallel build for:  arch-<arch> | make arch-<arch>-X.Y
 	@$(MSG) BUILDING and PUBLISHING package for arch $*
-	@MAKEFLAGS= $(PSTAT_TIME) $(MAKE) ARCH=$(basename $(subst -,.,$(basename $(subst .,,$*)))) TCVERSION=$(if $(findstring $*,$(basename $(subst -,.,$(basename $(subst .,,$*))))),$(DEFAULT_TC),$(notdir $(subst -,/,$*))) publish 2>&1 | tee --append build-$*.log ; \
+	@MAKEFLAGS= $(PSTAT_TIME) GCC_DEBUG_INFO="$(GCC_DEBUG_INFO)" $(MAKE) ARCH=$(basename $(subst -,.,$(basename $(subst .,,$*)))) TCVERSION=$(if $(findstring $*,$(basename $(subst -,.,$(basename $(subst .,,$*))))),$(DEFAULT_TC),$(notdir $(subst -,/,$*))) publish 2>&1 | tee --append build-$*.log >(grep -e '^http' -e '^{"package":' -e '^{"message":' >> publish-$*.log) ; \
 	  [ $${PIPESTATUS[0]} -eq 0 ] || false
 endif
 
